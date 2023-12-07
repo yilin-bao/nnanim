@@ -4,9 +4,13 @@
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![GitHub version](https://badge.fury.io/gh/user/repo.svg)](https://badge.fury.io/gh/user/repo)
 
+![Alt text](Attention.drawio.png)
+
 ## Overview
 
 This library is designed to generate visualizations of neural networks by analyzing PyTorch code. Unlike conventional methods, our approach eliminates the need for large parameter files (pth) or specific input formats. With minimal AI knowledge, users can leverage this tool to create visualizations that aid in understanding complex networks, including support for transformers and attention mechanisms.
+
+
 
 ## Installation
 
