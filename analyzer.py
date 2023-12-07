@@ -1,5 +1,5 @@
 import ast
-from ast import Assign, Attribute, BinOp, Call, For, Name, Return, mod
+from ast import Assign, Attribute, BinOp, Call, For, Name, Return, Tuple, mod
 from gettext import find
 import inspect
 from re import L
@@ -11,6 +11,7 @@ import torch.nn as nn
 import random
 import string
 import numpy as np
+import astor
 
 
 class Color:
@@ -21,6 +22,9 @@ class Color:
     PURPLE = '\033[95m'
     CYAN = '\033[96m'
     END = '\033[0m'
+    
+    
+id_list = []
 
 
 def generate_random_variable_name(length=8):
@@ -240,14 +244,20 @@ class ModuleAnalyzer:
     
 
 class ModuleAstAnalyzer(ast.NodeVisitor):
-    def __init__(self, var_list):
+    def __init__(self, module_list):
         self.parent_stack = []     # Track the node visit history
-        self.var_list:dict = var_list    # Here is all the nn.Module we wanna find in code
+        self.module_list:dict = module_list    # Here is all the nn.Module we wanna find in code
         self.module_map = []       # (Input, Output, Module)
         
         self.temp_var_ids = []
         self.forward_input = []
         self.current_var = ""
+        
+        self.forward_var_list = []
+        self.forward_param_list = []
+        self.analyzed_source_codes = set()
+        self.out_flag = None
+        self.out_dict = {}
         
     def generic_visit_with_parent_stack(self, node):
         self.parent_stack.append(node)
@@ -259,7 +269,10 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
     def visit_FunctionDef(self, node):
         # Only take look with how modules are called in nn.Module.forward
         if node.name == 'forward':
-            # for arg in node.args.args: print("arguments in forward", arg.arg)
+            for arg in node.args.args:
+                # print("arguments in forward", arg.arg)
+                if not arg.arg == 'self':
+                    self.forward_var_list.append(arg.arg)
             self.generic_visit(node)
 
     def visit_ClassDef(self, node):
@@ -269,8 +282,13 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
     # analyze the nerual network structure
         
     def visit_Name(self, node: Name) -> Any:
-        if node.id in self.var_list:
-            parent_type = [str(type(p)) for p in self.parent_stack]
+        # if node.id in self.module_list:
+        #     parent_type = [str(type(p)) for p in self.parent_stack]
+        if node in self.parent_stack:
+            return 0
+        if node.id in self.forward_var_list:
+            # parent_type = [str(type(p)) for p in self.parent_stack]
+            self.analyze_net_name(self.parent_stack, node)
         self.generic_visit_with_parent_stack(node)
         
     def visit_Return(self, node: Return) -> Any:
@@ -289,29 +307,46 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
         # If we found a module
         # a module must be an attribute !
         # well, we consider about other cases later
-        if node.attr in self.var_list:
+        # if node.attr in self.var_list:
             # parent_type = [str(type(p)) for p in self.parent_stack]
             # print(parent_type, node.attr)
             # prev_node = self.parent_stack[-1]
-            self.analyze_net_attr(self.parent_stack, node)
+            # self.analyze_net_attr(self.parent_stack, node)
         # I think we have need to dig in
-        # self.generic_visit_with_parent_stack(node)
+        self.generic_visit_with_parent_stack(node)
         
     def visit_Assign(self, node: Assign) -> Any:
         self.generic_visit_with_parent_stack(node)
         
     # Typer determination functions
     
-    def find_full_name(self, node: Attribute):
+    def find_full_name(self, node):
         if isinstance(node, ast.Name):
             return node.id
         elif isinstance(node, ast.Attribute):
             if isinstance(node.value, ast.Attribute):
-                return node.attr + self.find_full_name(node.value)
-            elif isinstance(node.value, ast.Name):
-                return node.attr + node.value.id
+                return node.attr + '.' + self.find_full_name(node.value)
+            elif isinstance(node.value, ast.Name) and not node.value.id == 'self':
+                return node.attr + '.', node.value.id
+            elif isinstance(node.value, ast.Name) and node.value.id == 'self':
+                return node.attr
+            elif isinstance(node.value, ast.Call):
+                return node.attr
             else:
                 pass # This won't happen
+        # elif isinstance(node, ast.Call):
+        #     return -'.'
+            
+    def find_all_names(self, node_list):
+        ret = []
+        for node in node_list:
+            if isinstance(node, ast.Name) or isinstance(node, ast.Attribute):
+                ret.append(self.find_full_name(node))
+            elif isinstance(node, ast.Constant):
+                ret.append(str(node.value))
+            elif isinstance(node, ast.BinOp):
+                ret.append(astor.to_source(node))
+        return ret
         
     def all_NameAttribute(self, targets):
         return self.all_Name(targets) or self.all_Attribute(targets)
@@ -344,12 +379,12 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
             p = parents[0]
             if isinstance(p, ast.Call):
                 op_in = [self.find_full_name(arg) for arg in p.args]
+                # if op_in == [None]: op_in = [generate_id(self.temp_var_ids)]
                 op_out = [generate_id(self.temp_var_ids)]
                 self.temp_var_ids.append(op_out[0])
                 tri_node = (op_in, op_out, current_op)
                 self.module_map.append(tri_node)
                 print(tri_node)
-                pass
             else:
                 parent_type = [str(type(p)) for p in parents]
                 print(parent_type, this.attr)
@@ -363,10 +398,140 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
                 self.module_map.append(tri_node)
                 print(tri_node)
                 return 0
+            else:
+                parent_type = [str(type(p)) for p in parents]
+                print(parent_type, this.attr)
         else:
             parent_type = [str(type(p)) for p in parents]
             print(parent_type, this.attr)
         # for i, p in enumerate(parents):
         # Return the final round of output variable
         return 0
-                
+    
+    def visit_Tuple(self, node: Tuple) -> Any:
+        return self.generic_visit_with_parent_stack(node)
+    
+    def analyze_net_name(self, parents, this:Name):
+        if len(parents) == 0:
+            return 0
+        # print(f"{Color.PURPLE}{parents[0]}{self.analyzed_source_codes}{Color.END}")
+        # if astor.to_source(parents[-1]) in self.analyzed_source_codes:
+        #     return 0
+        if parents[0] in self.analyzed_source_codes:
+            return 0
+        # At here, we made the parents upside down
+        # so the above [0] is the future [-1]
+        parents = parents[::-1]
+        current_var = this.id
+        # out_flag = None
+        this_flag = this
+        # current_modules = self.module_list
+        if len(parents) == 1:
+            p = parents[0]
+            if isinstance(p, ast.Assign) and p.targets[0] == this:
+                return 0
+            parent_type = [str(type(p)) for p in parents]
+            print(parent_type, this.id, astor.to_source(parents[0]))
+        elif len(parents) == 2:
+            p_0 = parents[0]
+            p_1 = parents[1]
+            if isinstance(p_0, ast.Call) and isinstance(p_1, ast.Assign):
+                if self.find_full_name(p_0.func):
+                    if self.find_full_name(p_0.func) in list(self.module_list.keys()):
+                        op = self.module_list[self.find_full_name(p_0.func)]
+                        op_in = [self.find_full_name(a) for a in p_0.args]
+                        for oi in op_in:
+                            if oi in list(self.out_dict.keys()):
+                                op_in.remove(oi)
+                                op_in.append(f'{oi}.{self.out_dict[oi]}')
+                        op_id = generate_id(id_list)
+                        id_list.append(op_id)
+                        op_out = [f'{self.find_full_name(a)}.{op_id}' for a in p_1.targets]
+                        for oo in op_out:
+                            if oo.split('.')[0] in list(self.out_dict.keys()):
+                                self.out_dict[oo.split('.')[0]] = oo.split('.')[1]
+                        tri_node = (op_in, op_out, op)
+                        self.module_map.append(tri_node)
+                pass
+            elif isinstance(p_0, ast.Attribute) and isinstance(p_1, ast.Assign) and isinstance(p_1.targets[0], ast.Tuple) and p_0.value == this:
+                op = p_0.attr
+                op_out = []
+                target = p_1.targets[0]
+                self.out_flag = this.id
+                if isinstance(target, ast.Tuple):
+                    for elt in target.elts:
+                        if isinstance(elt, ast.Name):
+                            op_id = generate_id(id_list)
+                            id_list.append(op_id)
+                            op_out.append(f'{elt.id}.{op_id}')
+                            # if not op == 'shape':
+                            self.forward_param_list.append(elt.id)
+                    op_id = generate_id(id_list)
+                    id_list.append(op_id)
+                    op_in = [f'{this.id}.{op_id}']
+                    self.out_flag = f'{this.id}.{op_id}'
+                    self.out_dict[this.id] = op_id
+                    tri_node = (op_in, op_out, op)
+                    self.module_map.append(tri_node)
+                # for target in p_1.targets:
+                #     print(target)
+                #     if isinstance(target, ast.Name):
+                #         op_id = generate_id(id_list)
+                #         op_in = self.find_full_name(p_0.value)
+                #         op_out = f'{target.id}.{generate_id(op_id)}'
+                #         id_list.append(op_id)
+                #         if not target.id in self.forward_var_list: self.forward_var_list.append(target.id)
+                #         tri_node = (op_in, op_out, op)
+                #         self.module_map.append(tri_node)
+                #         print(self.module_map)
+            else:
+                pass
+            parent_type = [str(type(p)) for p in parents]
+            print(parent_type, this.id, astor.to_source(parents[-1]))
+        else:
+            for i, p in enumerate(parents):
+                if isinstance(p, ast.Call):
+                    # print(self.find_full_name(p.func))
+                    if self.find_full_name(p.func):
+                        if self.find_full_name(p.func) in list(self.module_list.keys()):
+                            op = self.module_list[self.find_full_name(p.func)]
+                            if self.out_flag:
+                                op_in = [f'{self.out_flag}']
+                            else:
+                                op_in = None
+                            if i < len(parents)-1:
+                                op_id = generate_id(id_list)
+                                id_list.append(op_id)
+                                op_out = op_id
+                                self.out_flag = op_out
+                            else:
+                                self.out_flag = None
+                            tri_node = (op_in, [op_out], op)
+                            self.module_map.append(tri_node)
+                    pass
+                elif isinstance(p, ast.Attribute):
+                    if p.value == this_flag:
+                        op = p.attr
+                        if self.out_flag:
+                            op_in = [f'{self.out_flag}']
+                        else:
+                            op_in = None
+                        if i < len(parents)-1:
+                            op_id = generate_id(id_list)
+                            id_list.append(op_id)
+                            op_out = op_id
+                            self.out_flag = op_out
+                        else:
+                            self.out_flag = None
+                        for oo in [op_out]:
+                            if oo.split('.')[0] in list(self.out_dict.keys()):
+                                self.out_dict[oo.split('.')[0]] = oo.split('.')[1]
+                        tri_node = (op_in, [op_out], op)
+                        self.module_map.append(tri_node)
+                this_flag = p
+            parent_type = [str(type(p)) for p in parents]
+            print(parent_type, this.id, astor.to_source(parents[-1]))
+        self.analyzed_source_codes.add(parents[-1])
+        print(f"{Color.GREEN}{self.forward_var_list}{Color.END}")
+        print(f"{Color.GREEN}{self.forward_param_list}{Color.END}")
+        return 0
