@@ -1,4 +1,4 @@
-import ast
+import ast, astor
 from ast import Assign, Attribute, BinOp, Call, For, Name, Return, Tuple, mod
 from gettext import find
 import inspect
@@ -11,7 +11,6 @@ import torch.nn as nn
 import random
 import string
 import numpy as np
-import astor
 
 
 class Color:
@@ -50,29 +49,31 @@ def generate_id(check_array, length=8):
 
 class AnalyzerSetups:
     def __init__(self,
-                 analyze_depth=10):
+                 analyze_depth=10,
+                 debug_mod=False):
         self.analyze_depth = analyze_depth
+        self.debug_mod = debug_mod
     
 
 class ModuleAnalyzer:
     '''
     A class for analyzing the structure of PyTorch modules and their nested children.
     '''
-    def __init__(self):
+    def __init__(self, analyzer_setup=AnalyzerSetups()):
         '''
         Initializes the ModuleAnalyzer.
         '''
-        self.parameters = []
-        self.var_layers = []
-        self.l_flag = None
-        self.v_flag = None
-        self.analyzed_modules = {}
-        self.moudle_map = []
-        # self.temp_var_ids = []
-        self.nn_module_flag = None
-        self.nn_module_index = None
-        self.nn_module_pack = []
-        self.debug_mod = False
+        self.parameters = []                              #
+        self.var_layers = []                              #
+        self.l_flag = None                                      #
+        self.v_flag = None                                      #
+        self.analyzed_modules = {}                        #
+        self.moudle_map = []                              #
+        self.nn_module_flag = None                              #
+        self.nn_module_index = None                             #
+        self.nn_module_pack = []                          #
+        self.debug_mod = False                                  #
+        self.analyzer_setup = analyzer_setup    #
         
     def start_analyze_module(self, module):
         '''
@@ -245,9 +246,9 @@ class ModuleAnalyzer:
 
 class ModuleAstAnalyzer(ast.NodeVisitor):
     def __init__(self, module_list):
-        self.parent_stack = []     # Track the node visit history
-        self.module_list:dict = module_list    # Here is all the nn.Module we wanna find in code
-        self.module_map = []       # (Input, Output, Module)
+        self.parent_stack = []              # Track the node visit history
+        self.module_list:dict = module_list       # Here is all the nn.Module we wanna find in code
+        self.module_map = []                # (Input, Output, Module)
         
         self.temp_var_ids = []
         self.forward_input = []
