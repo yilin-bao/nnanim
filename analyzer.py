@@ -109,9 +109,9 @@ class ModuleAnalyzer:
         # var_module_mapping: Mapping of variables to PyTorch modules
         # An array of 2-tuples, each containing a variable name (first element) and its corresponding PyTorch module (second element).
         self.var_module_mapping = []
-        self.l_flag = None
-        self.v_flag = None
-        self.analyzed_modules = {}
+        self.var_module_dict = {}
+        self.layer_flag = None
+        self.var_flag = None
         self.moudle_map = []
         self.nn_module_flag = None
         self.nn_module_index = None
@@ -131,16 +131,16 @@ class ModuleAnalyzer:
         Returns:
         - str: The full name of the module.
         '''
-        if self.l_flag:
-            return f"{self.l_flag}.{layer.__class__.__name__}"
+        if self.layer_flag:
+            return f"{self.layer_flag}.{layer.__class__.__name__}"
         else:
             return layer.__class__.__name__
         
-    def get_var_name(self, var_name):
-        if self.v_flag:
-            return f"{self.v_flag}.{var_name}"
+    def get_var_name(self, name):
+        if self.var_flag:
+            return f"{self.var_flag}.{name}"
         else:
-            return var_name
+            return name
         
     def update_module_flag(self, layer):
         '''
@@ -149,16 +149,16 @@ class ModuleAnalyzer:
         Parameters:
         - layer (nn.Module): The PyTorch module.
         '''
-        if self.l_flag:
-            self.l_flag = f"{self.l_flag}.{layer.__class__.__name__}"
+        if self.layer_flag:
+            self.layer_flag = f"{self.layer_flag}.{layer.__class__.__name__}"
         else:
-            self.l_flag = layer.__class__.__name__
+            self.layer_flag = layer.__class__.__name__
             
-    def update_var_flag(self, v):
-        if self.v_flag:
-            self.v_flag = f"{self.v_flag}.{v}"
+    def update_var_flag(self, name):
+        if self.var_flag:
+            self.var_flag = f"{self.var_flag}.{name}"
         else:
-            self.v_flag = v
+            self.var_flag = name
     
     def start_analyze_module(self, module):
         '''
@@ -181,6 +181,7 @@ class ModuleAnalyzer:
             # Important
             module_name = self.get_module_name(module)
             dot_var_name = self.get_var_name(var_name)
+            print(dot_var_name, var_name)
             self.var_module_mapping.append((var_name, module_name))
             var_mod_list = {name:layer for name, layer in module.named_children()}
             # Print the name:class pair of the module
@@ -190,33 +191,14 @@ class ModuleAnalyzer:
             if self.is_torch_module(module):
                 self.analyze_inbuild_module(var_name, module)
             else:
-                # [This should be notice]
-                if self.nn_module_flag and not self.nn_module_flag in dot_var_name:
-                    self.moudle_map = self.update_module_map(self.nn_module_flag, self.nn_module_pack)
-                    self.nn_module_flag = None
-                    self.nn_module_index = None
-                # [This should be notice]
-                if module not in list(self.analyzed_modules.keys()):
-                    module_code = inspect.getsource(type(module))
-                    module_ast = ast.parse(module_code)
-                    analyzer = ModuleAstAnalyzer(var_mod_list)
-                    analyzer.visit(module_ast)
-                    result = analyzer.module_map
-                    self.moudle_map = self.update_module_map(var_name, result)
-                else:
-                    result = self.analyzed_modules[module_name]
-                    self.moudle_map = self.update_module_map(var_name, result)
-                print(f"{Color.GREEN}{self.moudle_map}{Color.END}")
-                for name, layer in module.named_children():
-                    self.analyze_module(name, layer)
-                self.analyzed_modules[module_name] = analyzer.module_map
+                self.analyze_defined_module(dot_var_name, var_name, module, module_name, var_mod_list)
         return 0
     
-    def analyze_inbuild_module(self, var_name, module):
+    def analyze_inbuild_module(self, var_name, dot_var_name, module):
         self.update_module_flag(module)
         self.update_var_flag(var_name)
-        lf_array = self.l_flag.split('.')
-        vf_array = self.v_flag.split('.')
+        lf_array = self.layer_flag.split('.')
+        vf_array = self.var_flag.split('.')
         lf_len = len(lf_array)
         vf_len = len(vf_array)
         # [We should make this another separated function]
@@ -236,16 +218,36 @@ class ModuleAnalyzer:
         for name, layer in module.named_children():
             self.analyze_module(name, layer)
         if lf_len > 1:
-            self.l_flag = '.'.join(lf_array[:-1])
+            self.layer_flag = '.'.join(lf_array[:-1])
         else:
-            self.l_flag = None
+            self.layer_flag = None
         if vf_len > 1:
-            self.v_flag = '.'.join(vf_array[:-1])
+            self.var_flag = '.'.join(vf_array[:-1])
         else:
-            self.v_flag = None
+            self.var_flag = None
         return 0
     
-    def analyze_defined_module(self):
+    def analyze_defined_module(self, dot_var_name, var_name, module, module_name, var_mod_list):
+        # [This should be notice]
+        if self.nn_module_flag and not self.nn_module_flag in dot_var_name:
+            self.moudle_map = self.update_module_map(self.nn_module_flag, self.nn_module_pack)
+            self.nn_module_flag = None
+            self.nn_module_index = None
+        # [This should be notice]
+        if module not in list(self.var_module_dict.keys()):
+            module_code = inspect.getsource(type(module))
+            module_ast = ast.parse(module_code)
+            analyzer = ModuleAstAnalyzer(var_mod_list)
+            analyzer.visit(module_ast)
+            result = analyzer.module_map
+            self.moudle_map = self.update_module_map(var_name, result)
+        else:
+            result = self.var_module_dict[module_name]
+            self.moudle_map = self.update_module_map(var_name, result)
+        print(f"{Color.GREEN}{self.moudle_map}{Color.END}")
+        for name, layer in module.named_children():
+            self.analyze_module(name, layer)
+        self.var_module_dict[module_name] = analyzer.module_map
         return 0
             
     def update_module_map(self, var_name, replace_map):
@@ -279,7 +281,7 @@ class ModuleAnalyzer:
         return module.__class__.__module__.startswith('torch')
     
     def print_analyze_status(self, var_name, module_name, module):
-        if module_name in self.analyzed_modules and self.is_torch_module(module):
+        if module_name in self.var_module_dict and self.is_torch_module(module):
             print(f"{Color.BLUE}({var_name}, {module_name}){Color.END}")
         else:
             print(f"{Color.RED}({var_name}, {module_name}){Color.END}")
@@ -290,9 +292,9 @@ class ModuleAnalyzer:
 
 class ModuleAstAnalyzer(ast.NodeVisitor):
     def __init__(self, module_list):
-        self.parent_stack = []              # 
-        self.module_list:dict = module_list       # 
-        self.module_map = []                # 
+        self.parent_stack = []
+        self.module_list:dict = module_list
+        self.module_map = []
         
         self.temp_var_ids = []              #
         self.forward_input = []             #
