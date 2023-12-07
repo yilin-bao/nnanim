@@ -10,8 +10,6 @@
 
 This library is designed to generate visualizations of neural networks by analyzing PyTorch code. Unlike conventional methods, our approach eliminates the need for large parameter files (pth) or specific input formats. With minimal AI knowledge, users can leverage this tool to create visualizations that aid in understanding complex networks, including support for transformers and attention mechanisms.
 
-
-
 ## Installation
 
 Ensure you have Python and PyTorch installed. Install the library using the following command:
@@ -24,11 +22,17 @@ pip install your-library
 
 To generate visualizations, simply provide PyTorch code as input. The library will analyze the code and create visual representations of the neural network. No need for large parameter files or intricate input formats.
 
-<!-- ```python
-import your_library
+```python
+import numpy as np
+import nnanim.analyzer
+from TestingCode import vit
+from TestingCode import modules
 
-# Example code for generating visualization
-``` -->
+la = nnanim.analyzer.ModuleAnalyzer()
+la.start_analyze_module(modules.Attention(dim=2*768))
+```
+
+For the example `TestingCode`, we are using a code base of vit: https://github.com/gupta-abhay/pytorch-vit/tree/main.
 
 ## Documentation
 
