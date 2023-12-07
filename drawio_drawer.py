@@ -4,7 +4,7 @@ from TestingCode import vit
 from TestingCode import modules
 
 la = analyzer.ModuleAnalyzer()
-la.start_analyze_module(vit.VisionTransformer(hidden_dims=[100]))
+la.start_analyze_module(modules.Attention(dim=2*768))
 
 from N2G import drawio_diagram
 
@@ -26,4 +26,4 @@ for m_map in la.moudle_map:
 # diagram.add_node(id="R2")
 # diagram.add_link("R1", "R2", label="DF", src_label="Gi1/1", trgt_label="GE23")
 diagram.layout(algo="kk")
-diagram.dump_file(filename="Vit.drawio", folder="./Output/")
+diagram.dump_file(filename="Attention_dim=2*768.drawio", folder="./Output/")
