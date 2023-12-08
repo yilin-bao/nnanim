@@ -267,8 +267,7 @@ class ModuleAnalyzer:
         # [var_module_layer] is the variable-module dictionary of current layer
         analyzer = ModuleAstAnalyzer(var_module_layer)
         analyzer.visit(module_ast)
-        result = analyzer.module_map
-        print("Results:", result)
+        print("Results:", analyzer.module_map)
         return 0
     
     # def analyze_inbuild_module(self, var_name, var_whole_name, module_name, module):
@@ -390,7 +389,7 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
         # In [ModuleAstAnalyzer], [var_module_dict] is just the current analyzed layer
         self.var_module_dict:dict = var_module_dict
         self.module_map = []
-        
+
         self.temp_var_ids = []
         self.forward_input = []
         self.current_var = ""
@@ -433,7 +432,7 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
     #---------Generically find names---------
     #----------------------------------------
         
-    def find_full_name(self, node):
+    def find_full_name(self, node):# -> _Identifier | Any | tuple[str, _Identifier] | None:
         if isinstance(node, ast.Name):
             return node.id
         elif isinstance(node, ast.Attribute):
@@ -505,5 +504,6 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
             return 0
         if node.id in self.forward_var_list:
             # parent_type = [str(type(p)) for p in self.parent_stack]
-            self.analyze_net_name(self.parent_stack, node)
+            # self.analyze_net_name(self.parent_stack, node)
+            pass
         self.generic_visit_with_parent_stack(node)
