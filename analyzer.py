@@ -284,7 +284,7 @@ class ModuleAnalyzer:
         self.remove_var_flag()
         # Either if current module is a pyTorch in-built module
         # yes: then analyze inside sub-modules is meaningless
-        # no: then we need to take a look with the logic inside
+        # no: then we need to take a look with the logic
         if self.is_torch_module(module):
             self.analyze_inbuild_module()
         else:
