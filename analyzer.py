@@ -18,33 +18,54 @@ import numpy as np
 
 class Color:
     # ANSI escape codes for standard text colors
-    RED = '\033[91m'
+    BLACK = '\033[90m'
+    RED = '\033[91m'                                        # for variable (names & attributes)
     GREEN = '\033[92m'
     YELLOW = '\033[93m'
-    BLUE = '\033[94m'
+    BLUE = '\033[94m'                                       # for module/layer (nn.Module, function & np attributes)
     PURPLE = '\033[95m'
-    CYAN = '\033[96m'
-    
-    # Additional standard text colors
+    CYAN = '\033[96m'                                       # for numbers, and also torch shape and numpy dimension
     WHITE = '\033[97m'
     
+    # Additional standard text colors
+    LIGHT_GRAY = '\033[37m'
+    DARK_GRAY = '\033[30m'
+    
+    # Extended set of standard text colors
+    ORANGE = '\033[38;5;208m'
+    PINK = '\033[38;5;200m'
+    TEAL = '\033[38;5;51m'
+    LIME = '\033[38;5;154m'
+    BROWN = '\033[38;5;130m'
+    GRAY = '\033[38;5;242m'
+    
     # ANSI escape codes for bold text in various colors
+    BOLD_BLACK = '\033[90;1m'
     BOLD_RED = '\033[91;1m'
     BOLD_GREEN = '\033[92;1m'
     BOLD_YELLOW = '\033[93;1m'
     BOLD_BLUE = '\033[94;1m'
     BOLD_PURPLE = '\033[95;1m'
     BOLD_CYAN = '\033[96;1m'
+    BOLD_WHITE = '\033[97;1m'
     
     # Additional bold text colors
-    BOLD_WHITE = '\033[97;1m'
+    BOLD_LIGHT_GRAY = '\033[37;1m'
+    BOLD_DARK_GRAY = '\033[30;1m'
+    
+    # Extended set of bold text colors
+    BOLD_ORANGE = '\033[38;5;214m'
+    BOLD_PINK = '\033[38;5;197m'
+    BOLD_TEAL = '\033[38;5;39m'
+    BOLD_LIME = '\033[38;5;155m'
+    BOLD_BROWN = '\033[38;5;94m'
+    BOLD_GRAY = '\033[38;5;245m'
     
     # ANSI escape code for underlined text
     UNDERLINE = '\033[4m'
-    
+
     # ANSI escape code to reset text attributes to default
     END = '\033[0m'
-    
     
 id_list = []
 
@@ -106,10 +127,13 @@ class ModuleAnalyzer:
         '''
         Initializes the ModuleAnalyzer.
         '''
+        self.all_parameters = {}
         # var_module_mapping: Mapping of variables to PyTorch modules
         # An array of 2-tuples, each containing a variable name (first element) and its corresponding PyTorch module (second element).
         self.var_module_mapping = []
         self.var_module_dict = {}
+        self.var_weight_dict = {}
+        self.var_bias_dict = {}
         self.layer_flag = None
         self.var_flag = None
         self.moudle_map = []
@@ -155,21 +179,72 @@ class ModuleAnalyzer:
             self.layer_flag = layer.__class__.__name__
             
     def update_var_flag(self, name):
+        if not name == 'self':
+            if self.var_flag:
+                self.var_flag = f"{self.var_flag}.{name}"
+            else:
+                self.var_flag = name
+            
+    def remove_module_flag(self):
+        if self.layer_flag:
+            arr = self.layer_flag.split('.')
+            if len(arr) > 1:
+                self.layer_flag = '.'.join(arr[:-1])
+            else:
+                self.layer_flag = None
+            
+    def remove_var_flag(self):
         if self.var_flag:
-            self.var_flag = f"{self.var_flag}.{name}"
-        else:
-            self.var_flag = name
+            arr = self.var_flag.split('.')
+            if len(arr) > 1:
+                self.var_flag = '.'.join(arr[:-1])
+            else:
+                self.var_flag = None
+                
+    # Getter method for Variable Module Dictionary
+    @property
+    def var_module_dict(self):
+        return self._var_module_dict
+
+    # Hidden setter method for Variable Module Dictionary
+    @var_module_dict.setter
+    def _var_module_dict(self, value):
+        # Custom logic can be added in the setter
+        self._var_module_dict = value
+
+    # Getter method for Variable Weight Dictionary
+    @property
+    def var_weight_dict(self):
+        return self._var_weight_dict
+
+    # Hidden setter method for Variable Weight Dictionary
+    @var_weight_dict.setter
+    def _var_weight_dict(self, value):
+        # Custom logic can be added in the setter
+        self._var_weight_dict = value
+
+    # Getter method for Variable Bias Dictionary
+    @property
+    def var_bias_dict(self):
+        return self._var_bias_dict
+
+    # Hidden setter method for Variable Bias Dictionary
+    @var_bias_dict.setter
+    def _var_bias_dict(self, value):
+        # Custom logic can be added in the setter
+        self._var_bias_dict = value
     
-    def start_analyze_module(self, module):
+    def start_analyze_module(self, module:nn.Module):
         '''
         Initiates the analysis of a PyTorch module and its nested children.
 
         Parameters:
         - module (nn.Module): The PyTorch module to be analyzed.
         '''
+        self.all_parameters = dict(module.named_parameters())
         self.analyze_module("self", module)
 
-    def analyze_module(self, var_name, module):
+    def analyze_module(self, var_name, module:nn.Module):
         '''
         Recursively analyzes the structure of PyTorch modules and their nested children.
 
@@ -178,77 +253,105 @@ class ModuleAnalyzer:
         - module (nn.Module): The PyTorch module to be analyzed.
         '''
         if isinstance(module, nn.Module):
-            # Important
             module_name = self.get_module_name(module)
-            dot_var_name = self.get_var_name(var_name)
-            print(dot_var_name, var_name)
-            self.var_module_mapping.append((var_name, module_name))
-            var_mod_list = {name:layer for name, layer in module.named_children()}
+            var_whole_name = self.get_var_name(var_name)
+            self.print_current_layer_information(var_whole_name, module_name)
+            self.var_module_mapping.append((var_whole_name, module_name))
+            self.var_module_dict[var_whole_name] = (module_name)
+            if f'{var_whole_name}.weight' in self.all_parameters:
+                self.var_weight_dict[var_whole_name] = self.all_parameters[f'{var_whole_name}.weight'].shape
+            if f'{var_whole_name}.bias' in self.all_parameters:
+                self.var_bias_dict[var_whole_name] = self.all_parameters[f'{var_whole_name}.bias'].shape
+            # var_mod_list = {name:layer for name, layer in module.named_children()}
             # Print the name:class pair of the module
-            # Red means first time analyzed + not torch built-in
-            # Blue means the otherwise
-            self.print_analyze_status(dot_var_name, module_name, module)
-            if self.is_torch_module(module):
-                self.analyze_inbuild_module(var_name, module)
-            else:
-                self.analyze_defined_module(dot_var_name, var_name, module, module_name, var_mod_list)
-        return 0
+            # self.print_analyze_status(var_whole_name, module_name, module)
+            self.analyze_module_by_cases(var_name, module)
+            return var_whole_name, module_name
     
-    def analyze_inbuild_module(self, var_name, dot_var_name, module):
+    def analyze_module_by_cases(self, var_name, module):
+        # If anymore following work is needed here
+        if self.is_torch_module(module):
+            pass
+        else:
+            pass
         self.update_module_flag(module)
         self.update_var_flag(var_name)
-        lf_array = self.layer_flag.split('.')
-        vf_array = self.var_flag.split('.')
-        lf_len = len(lf_array)
-        vf_len = len(vf_array)
-        # [We should make this another separated function]
-        if self.nn_module_flag and self.nn_module_flag in dot_var_name:
-            op_in = self.moudle_map[self.nn_module_index][0]
-            op_out = self.moudle_map[self.nn_module_index][1]
-            self.nn_module_pack.append((op_in, op_out, f"{self.nn_module_flag}.{module_name}"))
-        elif self.nn_module_flag and not self.nn_module_flag in dot_var_name:
-            self.moudle_map = self.update_module_map(self.nn_module_flag, self.nn_module_pack)
-            self.nn_module_flag = None
-            self.nn_module_index = None
-        map_modules = [item[-1] for item in self.moudle_map]
-        if var_name in map_modules:
-            self.nn_module_flag = var_name
-            self.nn_module_index = map_modules.index(var_name)
-        # [This function should ends here]
+        list_module_names = []
         for name, layer in module.named_children():
-            self.analyze_module(name, layer)
-        if lf_len > 1:
-            self.layer_flag = '.'.join(lf_array[:-1])
+            var_whole_name, module_name = self.analyze_module(name, layer)
+            list_module_names.append(var_whole_name)
+        self.remove_module_flag()
+        self.remove_var_flag()
+        # Either if current module is a pyTorch in-built module
+        # yes: then analyze inside sub-modules is meaningless
+        # no: then we need to take a look with the logic inside
+        if self.is_torch_module(module):
+            self.analyze_inbuild_module()
         else:
-            self.layer_flag = None
-        if vf_len > 1:
-            self.var_flag = '.'.join(vf_array[:-1])
-        else:
-            self.var_flag = None
+            self.analyze_defined_module()
         return 0
     
-    def analyze_defined_module(self, dot_var_name, var_name, module, module_name, var_mod_list):
-        # [This should be notice]
-        if self.nn_module_flag and not self.nn_module_flag in dot_var_name:
-            self.moudle_map = self.update_module_map(self.nn_module_flag, self.nn_module_pack)
-            self.nn_module_flag = None
-            self.nn_module_index = None
-        # [This should be notice]
-        if module not in list(self.var_module_dict.keys()):
-            module_code = inspect.getsource(type(module))
-            module_ast = ast.parse(module_code)
-            analyzer = ModuleAstAnalyzer(var_mod_list)
-            analyzer.visit(module_ast)
-            result = analyzer.module_map
-            self.moudle_map = self.update_module_map(var_name, result)
-        else:
-            result = self.var_module_dict[module_name]
-            self.moudle_map = self.update_module_map(var_name, result)
-        print(f"{Color.GREEN}{self.moudle_map}{Color.END}")
-        for name, layer in module.named_children():
-            self.analyze_module(name, layer)
-        self.var_module_dict[module_name] = analyzer.module_map
+    def analyze_inbuild_module(self):
         return 0
+    
+    def analyze_defined_module(self):
+        return 0
+    
+    # def analyze_inbuild_module(self, var_name, var_whole_name, module_name, module):
+    #     self.update_module_flag(module)
+    #     self.update_var_flag(var_name)
+    #     lf_array = self.layer_flag.split('.')
+    #     vf_array = self.var_flag.split('.')
+    #     lf_len = len(lf_array)
+    #     vf_len = len(vf_array)
+    #     # [We should make this another separated function]
+    #     if self.nn_module_flag and self.nn_module_flag in var_whole_name:
+    #         op_in = self.moudle_map[self.nn_module_index][0]
+    #         op_out = self.moudle_map[self.nn_module_index][1]
+    #         self.nn_module_pack.append((op_in, op_out, f"{self.nn_module_flag}.{module_name}"))
+    #     elif self.nn_module_flag and not self.nn_module_flag in var_whole_name:
+    #         self.moudle_map = self.update_module_map(self.nn_module_flag, self.nn_module_pack)
+    #         self.nn_module_flag = None
+    #         self.nn_module_index = None
+    #     map_modules = [item[-1] for item in self.moudle_map]
+    #     if var_name in map_modules:
+    #         self.nn_module_flag = var_name
+    #         self.nn_module_index = map_modules.index(var_name)
+    #     # [This function should ends here]
+    #     for name, layer in module.named_children():
+    #         self.analyze_module(name, layer)
+    #     if lf_len > 1:
+    #         self.layer_flag = '.'.join(lf_array[:-1])
+    #     else:
+    #         self.layer_flag = None
+    #     if vf_len > 1:
+    #         self.var_flag = '.'.join(vf_array[:-1])
+    #     else:
+    #         self.var_flag = None
+    #     return 0
+    
+    # def analyze_defined_module(self, var_whole_name, var_name, module_name, module, var_mod_list):
+    #     # [This should be notice]
+    #     if self.nn_module_flag and not self.nn_module_flag in var_whole_name:
+    #         self.moudle_map = self.update_module_map(self.nn_module_flag, self.nn_module_pack)
+    #         self.nn_module_flag = None
+    #         self.nn_module_index = None
+    #     # [This should be notice]
+    #     if module not in list(self.var_module_dict.keys()):
+    #         module_code = inspect.getsource(type(module))
+    #         module_ast = ast.parse(module_code)
+    #         analyzer = ModuleAstAnalyzer(var_mod_list)
+    #         analyzer.visit(module_ast)
+    #         result = analyzer.module_map
+    #         self.moudle_map = self.update_module_map(var_name, result)
+    #     else:
+    #         result = self.var_module_dict[module_name]
+    #         self.moudle_map = self.update_module_map(var_name, result)
+    #     # print(f"{Color.GREEN}{self.moudle_map}{Color.END}")
+    #     for name, layer in module.named_children():
+    #         self.analyze_module(name, layer)
+    #     self.var_module_dict[module_name] = analyzer.module_map
+    #     return 0
             
     def update_module_map(self, var_name, replace_map):
         # Determine if our current module is mentioned in previous analysis
@@ -285,6 +388,22 @@ class ModuleAnalyzer:
             print(f"{Color.BLUE}({var_name}, {module_name}){Color.END}")
         else:
             print(f"{Color.RED}({var_name}, {module_name}){Color.END}")
+            
+    def print_current_layer_information(self, var_whole_name, module_name, depth=2):
+        print('-'*60)
+        arr = module_name.split('.')
+        if len(arr) > depth:
+            print(f"We have find a layer {Color.RED}{var_whole_name}{Color.END}, which is an instance of {Color.BLUE}{'.'.join(arr[-depth:])}{Color.END}")
+        else:
+            print(f"We have find a layer {Color.RED}{var_whole_name}{Color.END}, which is an instance of {Color.BLUE}{module_name}{Color.END}")
+        if f'{var_whole_name}.weight' in self.all_parameters:
+            # f"Parameter Name: {name}, Shape: {param.shape}"
+            print(f"The weight tensor for this layer is {Color.CYAN}{self.all_parameters[f'{var_whole_name}.weight'].shape}{Color.END}")
+        if f'{var_whole_name}.bias' in self.all_parameters:
+            # f"Parameter Name: {name}, Shape: {param.shape}"
+            print(f"The bias vector for this layer is {Color.CYAN}{self.all_parameters[f'{var_whole_name}.bias'].shape}{Color.END}")
+        # else:
+        #     print("This layer is not a final deconstructed layer, so there is no weight and bias")
     
 #============================================================
 #======Ast static analyzer finds what happen in forward======
@@ -296,15 +415,15 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
         self.module_list:dict = module_list
         self.module_map = []
         
-        self.temp_var_ids = []              #
-        self.forward_input = []             #
-        self.current_var = ""		  #
+        self.temp_var_ids = []
+        self.forward_input = []
+        self.current_var = ""
         
-        self.forward_var_list = []          #
-        self.forward_param_list = []        #
-        self.analyzed_source_codes = set()        #
-        self.out_flag = None                      #
-        self.out_dict = {}                  #
+        self.forward_var_list = []
+        self.forward_param_list = []
+        self.analyzed_source_codes = set()
+        self.out_flag = None
+        self.out_dict = {}
         
     def generic_visit_with_parent_stack(self, node):
         self.parent_stack.append(node)
@@ -421,7 +540,7 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
             if isinstance(p, ast.Assign) and p.targets[0] == this:
                 return 0
             parent_type = [str(type(p)) for p in parents]
-            print(parent_type, this.id, astor.to_source(parents[0]))
+            # print(parent_type, this.id, astor.to_source(parents[0]))
         elif len(parents) == 2:
             p_0 = parents[0]
             p_1 = parents[1]
@@ -477,7 +596,7 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
             else:
                 pass
             parent_type = [str(type(p)) for p in parents]
-            print(parent_type, this.id, astor.to_source(parents[-1]))
+            # print(parent_type, this.id, astor.to_source(parents[-1]))
         else:
             for i, p in enumerate(parents):
                 if isinstance(p, ast.Call):
@@ -520,8 +639,8 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
                         self.module_map.append(tri_node)
                 this_flag = p
             parent_type = [str(type(p)) for p in parents]
-            print(parent_type, this.id, astor.to_source(parents[-1]))
+            # print(parent_type, this.id, astor.to_source(parents[-1]))
         self.analyzed_source_codes.add(parents[-1])
-        print(f"{Color.GREEN}{self.forward_var_list}{Color.END}")
-        print(f"{Color.GREEN}{self.forward_param_list}{Color.END}")
+        # print(f"{Color.GREEN}{self.forward_var_list}{Color.END}")
+        # print(f"{Color.GREEN}{self.forward_param_list}{Color.END}")
         return 0
