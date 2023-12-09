@@ -1,4 +1,5 @@
 import ast, astor
+import enum
 from ctypes import Array
 import time
 import hashlib
@@ -292,7 +293,7 @@ class ModuleAnalyzer:
         # [var_module_layer] is the variable-module dictionary of current layer
         analyzer = ModuleAstAnalyzer(var_module_layer, var_name, module_name)
         analyzer.visit(module_ast)
-        # print("Results:", analyzer.module_map)
+        self.print_module_map(analyzer.module_map)
         return 0
     
     # def analyze_inbuild_module(self, var_name, var_whole_name, module_name, module):
@@ -402,6 +403,13 @@ class ModuleAnalyzer:
             print(f"The bias vector for this layer is {Color.CYAN}{self.all_parameters[f'{var_whole_name}.bias'].shape}{Color.END}")
         # else:
         #     print("This layer is not a final deconstructed layer, so there is no weight and bias")
+    
+    def print_module_map(self, module_map, length=8):
+        print("================================")
+        print("Analyzer returns the module_map:")
+        print("================================")
+        for i, mm in enumerate(module_map):
+            print(f'Here is step {i} of the layer:', [a[:length] for a in mm[0]], [a[:length] for a in mm[1]], mm[2])
     
 #============================================================
 #======Ast static analyzer finds what happen in forward======
@@ -603,13 +611,14 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
         # self.hash_var_dict = {}
         if isinstance(grandparent, ast.Assign) and isinstance(parent, ast.Call):
             if grandparent.value == parent:
-                op = self.from_node_to_operation(parent.func)
+                op_name = self.from_node_to_operation(parent.func)
                 # print(self.var_module_dict)
                 args = self.find_full_name_array(parent.args)
                 targets = self.find_full_name_array(grandparent.targets)
-                print(args, targets)
-                
-            self.print_parents_and_code(this)
+                self.update_module_name(args, targets, op_name)
+            else:
+                # self.print_parents_and_code(this)
+                pass
         elif isinstance(grandparent, ast.Call) and isinstance(parent, ast.Call):
             # self.print_parents_and_code(this)
             pass
