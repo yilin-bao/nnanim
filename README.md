@@ -2,7 +2,6 @@
 
 [![Build Status](https://travis-ci.org/user/repo.svg?branch=master)](https://travis-ci.org/user/repo)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![GitHub version](https://badge.fury.io/gh/user/repo.svg)](https://badge.fury.io/gh/user/repo)
 
 ![Alt text](Attention.drawio.png)
 
