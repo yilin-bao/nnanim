@@ -1,4 +1,4 @@
-# PyTorch Neural Network Visualizer
+# Nnanim: A PyTorch Neural Network Visualizer
 
 [![Build Status](https://travis-ci.org/user/repo.svg?branch=master)](https://travis-ci.org/user/repo)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
