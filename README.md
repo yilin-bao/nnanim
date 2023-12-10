@@ -128,6 +128,8 @@ Contact us via email at [yibao@ucsd.edu].
 
 ![Alt text](https://github.com/yilin-bao/nnanim/blob/main/img/Attention.drawio.png)
 
+![](https://github.com/yilin-bao/nnanim/blob/main/img/Attention_dim%3D2*768.png)
+
 ## Related Projects
 
 - https://github.com/gwding/draw_convnet
