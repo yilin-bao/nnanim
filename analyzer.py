@@ -166,6 +166,10 @@ class ModuleAnalyzer:
         # analyzer_settings: Object to store settings for all analyzers
         # An instance of a class that manages and stores settings for various analyzers.
         self.analyzer_settings: AnalyzerSetups = analyzer_settings
+        # self.forward_tensor_list = []
+        # self.forward_param_list = []
+        self.out_dict = dict()
+        self.hash_var_dict = dict()
     
     def get_module_name(self, layer):
         '''
@@ -253,7 +257,7 @@ class ModuleAnalyzer:
         if isinstance(module, nn.Module):
             module_name = self.get_module_name(module)
             var_whole_name = self.get_var_name(var_name)
-            self.print_current_layer_information(var_whole_name, module_name)
+            # self.print_current_layer_information(var_whole_name, module_name)
             self.var_module_mapping.append((var_whole_name, module_name))
             self.var_module_dict[var_whole_name] = (module_name)
             if f'{var_whole_name}.weight' in self.all_parameters:
@@ -300,6 +304,15 @@ class ModuleAnalyzer:
         # [var_module_layer] is the variable-module dictionary of current layer
         analyzer = ModuleAstAnalyzer(var_module_layer, var_name, module_name)
         analyzer.visit(module_ast)
+        self.moudle_map = self.moudle_map + analyzer.module_map
+        if self.out_dict:
+            self.out_dict.update(analyzer.out_dict)
+        else:
+            self.out_dict = analyzer.out_dict
+        if self.hash_var_dict:
+            self.hash_var_dict.update(analyzer.hash_var_dict)
+        else:
+            self.hash_var_dict = analyzer.hash_var_dict
         # self.print_module_map(analyzer.module_map)
         return 0
             
@@ -514,7 +527,7 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
         # self.hash_var_dict = {}
         parents = parents[::-1]
         # ===
-        self.print_parents_and_code(this)
+        # self.print_parents_and_code(this)
         if len(parents) == 1:
             self.special_case_length_one(parents[0], this)
         else:
@@ -637,7 +650,9 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
     
     def analyze_net_ast_binop(self, node:ast.BinOp, this:Name, current, intermediate):
         print("Start analyzation on a node type of ast.BinOp")
-        op_name = node.op
+        op_name = ""
+        if isinstance(node.op, ast.Add):
+            op_name = "Add"
         if current:
             pass
         else:
@@ -683,7 +698,7 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
         op_out_hash = [middle_hash]
         operation = (op_in_hash, op_out_hash, op_name)
         self.module_map.append(operation)
-        self.print_operation(operation)
+        # self.print_operation(operation)
         return [middle_hash]
     
     def update_module_name_hash_in(self, op_in_hash:Array, op_name):
@@ -691,7 +706,7 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
         op_out_hash: list[str] = [middle_hash]
         operation = (op_in_hash, op_out_hash, op_name)
         self.module_map.append(operation)
-        self.print_operation(operation)
+        # self.print_operation(operation)
         return [middle_hash]
     
     def update_module_name_only_out(self, middle_hash, op_out_array:Array, op_name):
@@ -703,7 +718,7 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
             op_out_hash.append(new_hash)
         operation = (middle_hash, op_out_hash, op_name)
         self.module_map.append(operation)
-        self.print_operation(operation)
+        # self.print_operation(operation)
         return [op_out_hash]
 
     def update_module_name(self, op_in_array:Array, op_out_array:Array, op_name):
@@ -723,7 +738,7 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
             op_out_hash.append(new_hash)
         operation = (op_in_hash, op_out_hash, op_name)
         self.module_map.append(operation)
-        self.print_operation(operation)
+        # self.print_operation(operation)
         return [op_out_hash]
     
     def update_module_name_hash(self, op_in_hash:Array, op_out_array:Array, op_name):
@@ -737,7 +752,7 @@ class ModuleAstAnalyzer(ast.NodeVisitor):
             op_out_hash.append(new_hash)
         operation = (op_in_hash, op_out_hash, op_name)
         self.module_map.append(operation)
-        self.print_operation(operation)
+        # self.print_operation(operation)
         return [op_out_hash]
     
     def print_parents_and_code(self, this:Name):
