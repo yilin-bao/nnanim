@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/user/repo.svg?branch=master)](https://travis-ci.org/user/repo)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-<img src="https://github.com/yilin-bao/nnanim/raw/main/nnanim.png" alt="Logo" width="100"/>
+<img src="https://github.com/yilin-bao/nnanim/blob/main/img/nnanim.png" alt="Logo" width="100"/>
 
 ## Overview
 
@@ -126,7 +126,7 @@ Contact us via email at [yibao@ucsd.edu].
 
 ## Screenshots or Demos
 
-![Alt text](Attention.drawio.png)
+![Alt text](https://github.com/yilin-bao/nnanim/blob/main/img/Attention.drawio.png)
 
 ## Related Projects
 
